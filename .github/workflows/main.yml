@@ -1,0 +1,37 @@
+name: Build APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Préparer Godot
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates ~/.config/godot
+          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
+          cp -r /root/.config/godot/* ~/.config/godot/
+
+      - name: Clé de debug
+        run: |
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+          sed -i "s@keystore/debug=\".*\"@keystore/debug=\"$PWD/debug.keystore\"@" export_presets.cfg
+          sed -i 's@keystore/debug_user=".*"@keystore/debug_user="androiddebugkey"@' export_presets.cfg
+          sed -i 's@keystore/debug_password=".*"@keystore/debug_password="android"@' export_presets.cfg
+
+      - name: Export APK
+        run: |
+          mkdir -p build
+          godot --headless --import || true
+          godot --headless --verbose --export-debug "Android" build/SideswipeClone.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SideswipeClone-apk
+          path: build/SideswipeClone.apk
